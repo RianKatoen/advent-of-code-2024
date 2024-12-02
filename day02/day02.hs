@@ -6,13 +6,13 @@ readFileToColumns filePath = do
     reports <- readFile filePath
     return (map (map read . words) (lines reports))
 
-calculateSafetyScores :: [Int] -> [Int]
+--calculateSafetyScores :: [Int] -> [Int]
 calculateSafetyScores x = zipWith (-) x (tail x)
 
 isSafe :: [Int] -> Bool
 isSafe xs
-  | all (>0) (calculateSafetyScores xs) = all (<=3) (calculateSafetyScores xs)
-  | all (<0) (calculateSafetyScores xs) = all (-3<=) (calculateSafetyScores xs)
+  | all (\x -> 0 < x && x <= 3) (calculateSafetyScores xs) = True
+  | all (\x -> -3 <= x && x < 0) (calculateSafetyScores xs) = True
   | otherwise = False
 
 isSafeWithDamper :: [Int] -> Bool
