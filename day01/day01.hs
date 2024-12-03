@@ -1,32 +1,34 @@
-import System.IO (readFile)
 import Data.List (sort)
-import Data.Maybe (mapMaybe)
-import Text.Read (readMaybe)
 
-parseLine :: String -> Maybe (Int, Int)
-parseLine line =
-    case words line of
-        [x, y] -> (,) <$> readMaybe x <*> readMaybe y
-        _      -> Nothing
+parseLine :: (String, String) -> (Int, Int)
+parseLine (a, b) = (read a :: Int, read b :: Int)
 
-readFileAndParse :: FilePath -> IO ([Int], [Int])
-readFileAndParse filePath = do
-    contents <- readFile filePath
-    let (list1, list2) = unzip (mapMaybe parseLine (lines contents))
-    return (list1, list2)
+getInput :: FilePath -> IO ([Int], [Int])
+getInput filePath = do
+  contents <- readFile filePath
+  let input = lines contents
+  return $ unzip $ map (parseLine . break (==' ')) input
 
-countInList :: [Int] -> Int -> Int
-countInList list x  = do
-    x * length (filter (==x) list)
+getPart1 :: [Int] -> [Int] -> Int
+getPart1 a b = sum $ zipWith (\x y -> abs (x - y)) (sort a) (sort b)
 
-main :: IO ()
+getPart2 :: [Int] -> [Int] -> Int
+getPart2 a b = sum $ map (\x -> x * length (filter (==x) b)) a
+
 main = do
-    (list1, list2) <- readFileAndParse "input.txt"
+  (exampleList1, exampleList2)  <- getInput "example.txt"
+  (list1, list2)                <- getInput "input.txt"
+  
+  -- part1
+  putStrLn "\npart1"
+  let example1 = getPart1 exampleList1 exampleList2
+  print [example1, example1 - 11]
+  let part1 = getPart1 list1 list2
+  print [part1, part1 - 2344935]
 
-    -- part1
-    putStrLn "\npart1"
-    print $ sum $ zipWith (\x y -> abs (x - y)) (sort list1) (sort list2)
-
-    -- part2
-    putStrLn "\npart2"
-    print $ sum $ map (countInList list2) list1
+  -- part2
+  putStrLn "\npart2"
+  let example2 = getPart2 exampleList1 exampleList2
+  print [example2, example2 - 31]
+  let part2 = getPart2 list1 list2
+  print [part2, part2 - 27647262]
