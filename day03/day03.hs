@@ -5,43 +5,41 @@ import Data.Maybe (isNothing, fromJust)
 -- Let's try and do this without regex...
 split :: Char -> String -> [String]
 split c s = case rest of
-                []     -> [chunk]
-                _:rest -> chunk : split c rest
-  where (chunk, rest) = break (==c) s
+        []     -> [chunk]
+        _:rest -> chunk : split c rest
+    where (chunk, rest) = break (==c) s
 
 isLegitMul :: String -> Bool
-isLegitMul x
-    | length x < 3 = False -- At least 1 digit
-    | length x > 7 = False -- No more than 3 digits.
-    | otherwise = do
-        let numbers = split ',' x
-        (length numbers == 2) && all (all isNumber) numbers
+isLegitMul x = case xs of
+        [a, b] -> all isNumber a && all isNumber b
+        _ -> False
+    where xs = split ',' x
 
 calculate :: [String] -> Int
 calculate x = product $ map read x
 
-captureAll :: (String -> Bool) -> String -> String -> String -> [String]
-captureAll f a b x = do
+capture :: (String -> Bool) -> String -> String -> String -> [String]
+capture f a b x = do
     let ix_a = findIndex (isPrefixOf a) (tails x)
-    if isNothing ix_a
-        then []
-    else do
-        let remainder = drop (fromJust ix_a + length a) x
-        let ix_b = findIndex (isPrefixOf b) (tails remainder)
-        if isNothing ix_b
-            then []
-        else do
-            let captured = take (fromJust ix_b) remainder
-            if f captured
-                then captured : captureAll f a b (drop (fromJust ix_b) remainder)
-            else
-                captureAll f a b remainder
+    case ix_a of
+        Nothing -> []
+        __ -> do
+            let remainder = drop (fromJust ix_a + length a) x
+            let ix_b = findIndex (isPrefixOf b) (tails remainder)
+            case ix_b of
+                Nothing -> []
+                _ -> do
+                    let captured = take (fromJust ix_b) remainder
+                    if f captured
+                        then captured : capture f a b (drop (fromJust ix_b) remainder)
+                    else
+                        capture f a b remainder
 
 part1 :: String -> Int
-part1 x = sum $ map (calculate . split ',') (captureAll isLegitMul "mul(" ")" x)
+part1 x = sum $ map (calculate . split ',') (capture isLegitMul "mul(" ")" x)
 
 part2 :: String -> Int
-part2 x = sum $ map part1 $ captureAll (const True) "do()" "don't()" ("do()" ++ x ++ "don't()")
+part2 x = sum $ map part1 $ capture (const True) "do()" "don't()" ("do()" ++ x ++ "don't()")
 
 main = do
     let exampleInput1 = "xmul(2,4)%&mul[3,7]!@^do_not_mul(5,5)+mul(32,64]then(mul(11,8)mul(8,5))"
