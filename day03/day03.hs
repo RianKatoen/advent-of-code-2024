@@ -1,4 +1,4 @@
-import Data.Char (isDigit)
+import Data.Char (isNumber)
 import Data.List (isPrefixOf, findIndex, tails)
 import Data.Maybe (isNothing, fromJust)
 
@@ -9,22 +9,19 @@ split c s = case rest of
                 _:rest -> chunk : split c rest
   where (chunk, rest) = break (==c) s
 
-isNumber :: String -> Bool
-isNumber [] = False
-isNumber [c] = isDigit c
-isNumber x = all (\c -> isNumber [c]) x
-
-isLegit :: String -> Bool
-isLegit x
+isLegitMul :: String -> Bool
+isLegitMul x
     | length x < 3 = False -- At least 1 digit
     | length x > 7 = False -- No more than 3 digits.
-    | otherwise = all (\y -> isNumber y && not (null y) && (length y <= 3)) (split ',' x)
+    | otherwise = do
+        let numbers = split ',' x
+        (length numbers == 2) && all (all isNumber) numbers
 
 calculate :: [String] -> Int
 calculate x = product $ map read x
 
-captureNew :: (String -> Bool) -> String -> String -> String -> [String]
-captureNew f a b x = do
+captureAll :: (String -> Bool) -> String -> String -> String -> [String]
+captureAll f a b x = do
     let ix_a = findIndex (isPrefixOf a) (tails x)
     if isNothing ix_a
         then []
@@ -36,15 +33,15 @@ captureNew f a b x = do
         else do
             let captured = take (fromJust ix_b) remainder
             if f captured
-                then captured : captureNew f a b (drop (fromJust ix_b) remainder)
+                then captured : captureAll f a b (drop (fromJust ix_b) remainder)
             else
-                captureNew f a b remainder
+                captureAll f a b remainder
 
 part1 :: String -> Int
-part1 x = sum $ map (calculate . split ',') (captureNew isLegit "mul(" ")" x)
+part1 x = sum $ map (calculate . split ',') (captureAll isLegitMul "mul(" ")" x)
 
 part2 :: String -> Int
-part2 x = sum $ map part1 $ captureNew (const True) "do()" "don't()" ("do()" ++ x ++ "don't()")
+part2 x = sum $ map part1 $ captureAll (const True) "do()" "don't()" ("do()" ++ x ++ "don't()")
 
 main = do
     let exampleInput1 = "xmul(2,4)%&mul[3,7]!@^do_not_mul(5,5)+mul(32,64]then(mul(11,8)mul(8,5))"
