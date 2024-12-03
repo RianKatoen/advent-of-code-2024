@@ -2,9 +2,6 @@ import Data.Char (isDigit)
 import Debug.Trace (traceShow)
 
 -- Let's try and do this without regex...
-count :: Char -> String -> Int
-count c x = sum $ map (const 1) (filter (==c) x)
-
 split :: Char -> String -> [String]
 split _ [] = [""]
 split c x = do
@@ -22,10 +19,8 @@ isNumber x = all (\c -> isNumber [c]) x
 
 isLegit :: String -> Bool
 isLegit x
-    | null x = False
-    | length x < 3 = False
-    | count ',' x /= 1 = False
-    | length (split ',' x)  /= 2 = False
+    | length x < 3 = False -- At least 1 digit
+    | length x > 7 = False -- No more than 3 digits.
     | otherwise = all (\y -> isNumber y && not (null y) && (length y <= 3)) (split ',' x)
 
 dropUntil :: String -> String -> String
@@ -43,7 +38,7 @@ takeUntil a x
 
 capture :: String -> String -> String -> String
 capture a b x = do
-    let start = dropUntil a x
+    let start = takeUntil a x
     let remainder = takeUntil b start
     if length start == length remainder
         then []
