@@ -1,5 +1,3 @@
-import Debug.Trace (traceShow)
--- Define vertical direction enum
 data XDirection = GoUp | GoDown | Flat deriving (Show, Eq, Enum)
 data YDirection = GoLeft | GoRight | Center deriving (Show, Eq, Enum)
 
