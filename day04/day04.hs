@@ -35,7 +35,7 @@ getIndices n = take (n*n) $ map (\i -> (i `div` n, i `rem` n)) [0..]
 getWord :: Int -> [String] ->  (Int, Int) -> (XDirection, YDirection) -> String
 getWord n puzzle (x, y) (xDir, yDir)  = do
     let (dx, dy) = getOffset (xDir, yDir)
-    if not(checkBounds (x, y) (length puzzle, length (head puzzle)))
+    if not (checkBounds (x, y) (length puzzle, length (head puzzle)))
         then []
     else if checkBounds ((n - 1) * dx + x, (n - 1) * dy + y) (length puzzle, length (head puzzle))
         then take n $ map (\ix -> puzzle !! (x + ix * dx) !! (y + ix * dy)) [0..]
@@ -45,15 +45,15 @@ getWord n puzzle (x, y) (xDir, yDir)  = do
 getWords :: Int -> [String] -> (Int, Int) -> [String]
 getWords n puzzle (x, y) = filter (/="") $ map getWordPuzzle allDirections
     where getWordPuzzle = getWord n puzzle (x, y)
- 
+
 countWord :: String -> [String] -> Int
-countWord word puzzle = sum $ map (\(x, y) -> length $ filter (==word) $ getWordPuzzle (x, y)) $ getIndices $ length puzzle
+countWord word puzzle = sum $ map (length . filter (==word) . getWordPuzzle) $ getIndices $ length puzzle
     where getWordPuzzle = getWords (length word) puzzle
 
 getCross :: [String] -> (Int, Int) -> [String]
 getCross puzzle (x, y) = [getWordPuzzle (x - 1, y - 1) (GoDown, GoRight), getWordPuzzle (x + 1, y - 1) (GoUp, GoRight)]
-    where getWordPuzzle = getWord 3 puzzle 
-    
+    where getWordPuzzle = getWord 3 puzzle
+
 checkCross :: String -> [String] -> Bool
 checkCross _    ["", _]  = False
 checkCross _    [_, ""]  = False
@@ -75,13 +75,13 @@ main = do
     let answerPart1 = countWord "XMAS" input
     print [answerPart1, answerPart1 - 2569]
 
-    
+
     putStrLn "\n--part2"
-    
+
     example2InputFile <- readFile "example2.txt"
     let example2Input = lines example2InputFile
     let example2 = length $ countCrosses "MAS" example2Input
     print [example2, example2 - 9]
-    
+
     let answerPart2 = length $ countCrosses "MAS" input
     print [answerPart2, answerPart2 - 1998]
