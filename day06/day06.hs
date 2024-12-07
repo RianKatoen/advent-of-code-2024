@@ -78,13 +78,22 @@ placeObstacle (x, y) elfMap = do
     let henk = aa ++ [Obj] ++ bbs
     a ++ [henk] ++ bs
 
-getAllPossibleObstacles :: [[Pixel]] -> [(Direction, (Int, Int))] -> [(Int, (Int, Int))]
-getAllPossibleObstacles elfMap guardPath = filter (\(i, (x, y)) -> elfMap !! x !! y /= Obj) $ filter (\(d, loc) -> not $ isOutOfBounds elfMap loc) $ zipWith (curry (\(i, (d, loc)) -> (i, move d loc))) [0..] guardPath
+getAllPossibleObstacles :: [[Pixel]] -> [(Direction, (Int, Int))] -> [(Int, Int)]
+getAllPossibleObstacles elfMap guardPath = filter (\(x, y) -> elfMap !! x !! y /= Obj) $ filter (not . isOutOfBounds elfMap) $ map (uncurry move) guardPath
 
 superplay :: [[Pixel]] -> [(Direction, (Int, Int))] -> (Int, Int) -> Int -> [(Direction, (Int, Int))]
 superplay elfMap guardPath loc i =
         play (placeObstacle loc elfMap) (take i guardPath) a b
     where (a, b) = guardPath !! i
+
+part2 :: FilePath -> IO Int
+part2 filePath = do
+    (loc, elfMap) <- parseMap filePath
+    let guardPath = play elfMap [] Up loc
+    let allObstacles = getAllPossibleObstacles elfMap guardPath
+
+    let jankMagic = filter (\(l, (x, y)) -> not (isOutOfBounds elfMap (x, y))) $ map ((\(l, (d, (x, y))) -> (l, move d (x, y))) . (\l -> (l, last $ superplay elfMap guardPath l 0))) allObstacles
+    return $ length $ nub $ map fst jankMagic
 
 main = do
     putStrLn "\n--part1"
@@ -96,9 +105,8 @@ main = do
     print [answerPart1, answerPart1 - 5444]
 
     putStrLn "\n--part2"
-    (loc, elfMap) <- parseMap "input.txt"
-    let guardPath = play elfMap [] Up loc
-    let allObstacles = getAllPossibleObstacles elfMap guardPath
+    example2 <- part2 "example1.txt"
+    print [example2, example2 - 6]
 
-    let henk = filter (\(l, (x, y)) -> not (isOutOfBounds elfMap (x, y))) $ map (\(l, (d, (x, y))) -> (l, move d (x, y))) $ map (\(i, l) -> (l, last $ superplay elfMap guardPath l $ max 0 0)) $ allObstacles
-    print $ length $ nub $ map (\(i, (l, _)) -> traceShow (i, l) l) $ zip [0..] henk
+    answerPart2 <- part2 "input.txt"
+    print [answerPart2, answerPart2 - 1946]
