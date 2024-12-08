@@ -1,16 +1,15 @@
-import Debug.Trace (traceShow, traceShowId)
-import Data.List (findIndex, elemIndex, nub, sort)
-import Data.Maybe (fromJust)
+import Data.List (elemIndex, nub, sortBy, groupBy)
+import Data.Maybe (fromJust, isJust)
+import Data.Set (Set, empty, member, insert, toList)
 import Prelude hiding (Right, Left)
-import Control.Arrow (ArrowLoop(loop))
-import Control.Monad (guard)
+import qualified Data.Map.Strict as Map
+import Debug.Trace (traceShowId, traceShow)
+import qualified Data.Bifunctor
 
-data Direction = Left | Right | Up | Down
-    deriving (Eq, Show)
+data Direction = Left | Right | Up | Down deriving (Eq, Ord, Show)
+data Pixel = Dot | Obj deriving (Eq, Ord, Show)
 
-data Pixel = Dot | Obj
-    deriving (Eq, Show)
-
+-- Own library when?
 split :: Eq a => a -> [a] -> [[a]]
 split c s = case rest of
         []     -> [chunk]
@@ -20,10 +19,11 @@ split c s = case rest of
 parseMap :: FilePath -> IO ((Int, Int), [[Pixel]])
 parseMap filePath = do
     contents <- readFile filePath
-    let elfMap = lines contents
-    let (x, y) = head $ filter (\(x, y) -> y /= Nothing) $ zip [0..] (map (elemIndex '^') elfMap)
-    return ((x, fromJust y), map (map (\x -> if x == '#' then Obj else Dot)) elfMap)
+    let linez = lines contents
+    let (x, y) = head $ filter (\(x, y) -> isJust y) $ zip [0..] $ map (elemIndex '^') linez
+    return ((x, fromJust y), map (map (\x -> if x == '#' then Obj else Dot)) linez)
 
+-- Generic momevement stuff.
 rotate :: Direction -> Direction
 rotate d = case d of
     Left    -> Up
@@ -31,82 +31,105 @@ rotate d = case d of
     Right   -> Down
     Down    -> Left
 
-move :: Direction -> (Int, Int) -> (Int, Int)
-move d (x, y) = case d of
-    Left    -> (x, y-1)
-    Right   -> (x, y+1)
-    Up      -> (x-1, y)
-    Down    -> (x+1, y)
+move :: (Direction, (Int, Int)) -> (Int, Int)
+move (d, (x, y)) = case d of
+    Left    -> (x, y - 1)
+    Right   -> (x, y + 1)
+    Up      -> (x - 1, y)
+    Down    -> (x + 1, y)
 
-isOutOfBounds :: [[Pixel]] -> (Int, Int) -> Bool
+isOutOfBounds :: Int -> (Int, Int) -> Bool
 isOutOfBounds _ (-1, _) = True
 isOutOfBounds _ (_, -1) = True
-isOutOfBounds elfMap (x, y)
-    | x >= length elfMap = True
-    | y >= length elfMap = True
-    | otherwise          = False
+isOutOfBounds boundary (x, y)
+        | x >= boundary = True
+        | y >= boundary = True
+        | otherwise     = False
 
+-- Movement logicz.
 step :: [[Pixel]] -> Direction -> (Int, Int) -> (Direction, (Int, Int), Bool)
 step elfMap d (x, y)
-        | isOutOfBounds elfMap (dx, dy) = (d, (x, y), True)
-        | elfMap !! dx !! dy == Dot     = (d, (dx, dy), False)
-        | otherwise                     = (rotate d, (x, y), False)
-    where (dx, dy) = move d (x, y)
+        | isOutOfBounds boundary (dx, dy) = (d,        (x, y),    True)
+        | elfMap !! dx !! dy == Dot       = (d,        (dx, dy),  False)
+        | otherwise                       = (rotate d, (x, y),    False)
+    where (dx, dy) = move (d, (x, y))
+          boundary = length elfMap
 
-play :: [[Pixel]] -> [(Direction, (Int, Int))] -> Direction -> (Int, Int) -> [(Direction, (Int, Int))]
-play elfMap steps d (x, y)
-        | terminated                                = steps ++ [(d, (x, y))]
-        | (d, (x, y)) `elem` steps                  = steps -- "Looping" condition.
-        | otherwise                                 = play elfMap (steps ++ [(d, (x, y))]) dd (dx, dy)
+walk :: [[Pixel]] -> Int -> Map.Map (Direction, (Int, Int)) Int -> Direction -> (Int, Int) -> (Int, Map.Map (Direction, (Int, Int)) Int)
+walk elfMap n steps d (x, y)
+        | terminated                        = (n, Map.insert (d, (x, y)) n steps)
+        | isJust wut                        = (-1, Map.insert (d, (x, y)) n steps) -- "Looping" condition.
+        | otherwise                         = walk elfMap (n + 1) (Map.insert (d, (x, y)) n steps) dd (dx, dy)
     where (dd, (dx, dy), terminated) = step elfMap d (x, y)
+          wut = Map.lookup (d, (x, y)) steps
 
-getPath :: FilePath -> IO [(Direction, (Int, Int))]
-getPath filePath = do
-    (loc, elfMap) <- parseMap filePath
-    return $ play elfMap [] Up loc
+part1 :: [[Pixel]] -> (Int, Int) -> Int
+part1 elfMap loc = length . nub . map (\((_, (x, y)), _) -> (x, y)) $ y
+    where x = snd $ walk elfMap 0 Map.empty Up loc
+          y = Map.toList x
 
-part1 :: FilePath -> IO Int
-part1 filePath = do
-    stuff <- getPath filePath
-    let (directions, locs) = unzip stuff
-    return $ length $ nub locs
+placeObstacle :: [[Pixel]] -> (Int, Int) -> [[Pixel]]
+placeObstacle elfMap (x, y) = a ++ [between] ++ bs
+    where (a, b:bs) = splitAt x elfMap
+          (aa, bb:bbs) = splitAt y b
+          between = aa ++ [Obj] ++ bbs
 
-placeObstacle :: (Int, Int) -> [[Pixel]] -> [[Pixel]]
-placeObstacle (x, y) elfMap = do
-    let (a, b:bs) = splitAt x elfMap
-    let (aa, bb:bbs) = splitAt y b
-    let henk = aa ++ [Obj] ++ bbs
-    a ++ [henk] ++ bs
+wuut :: (Int, (Int, Int)) -> (Int, (Int, Int)) -> Ordering
+wuut (n, (a, b)) (m, (x, y))
+    | (n, a, b) < (m, x, y)  = LT
+    | (n, a, b) > (m, x, y)  = GT
+    | otherwise              = EQ
 
-getAllPossibleObstacles :: [[Pixel]] -> [(Direction, (Int, Int))] -> [(Int, Int)]
-getAllPossibleObstacles elfMap guardPath = filter (\(x, y) -> elfMap !! x !! y /= Obj) $ filter (not . isOutOfBounds elfMap) $ map (uncurry move) guardPath
+getAllPossibleObstacles :: [[Pixel]] -> [((Direction, (Int, Int)), Int)] -> [(Int, (Int, Int))]
+getAllPossibleObstacles elfMap guardPath
+        | nextSteps         <- map (\((d, (x, y)), i) -> (i, move (d, (x, y)))) guardPath,
+          boundary          <- length elfMap,
+          inBoundsSteps     <- filter (not . isOutOfBounds boundary . snd) nextSteps
+    = sortBy wuut $ filter (\(_, (x, y)) -> elfMap !! x !! y /= Obj) inBoundsSteps
 
-superplay :: [[Pixel]] -> [(Direction, (Int, Int))] -> (Int, Int) -> Int -> [(Direction, (Int, Int))]
-superplay elfMap guardPath loc i =
-        play (placeObstacle loc elfMap) (take i guardPath) a b
-    where (a, b) = guardPath !! i
+compareObstacles :: (Int, (Int, Int)) -> (Int, (Int, Int)) -> Ordering
+compareObstacles (n, (a, b)) (m, (x, y))
+    | (a, b, n) < (x, y, m)  = LT
+    | (a, b, n) > (x, y, m)  = GT
+    | otherwise              = EQ
 
-part2 :: FilePath -> IO Int
-part2 filePath = do
-    (loc, elfMap) <- parseMap filePath
-    let guardPath = play elfMap [] Up loc
-    let allObstacles = getAllPossibleObstacles elfMap guardPath
+sameObstacle :: (Int, (Int, Int)) -> (Int, (Int, Int)) -> Bool
+sameObstacle (_, a) (_, b) = a == b
 
-    let jankMagic = filter (\(l, (x, y)) -> not (isOutOfBounds elfMap (x, y))) $ map ((\(l, (d, (x, y))) -> (l, move d (x, y))) . (\l -> (l, last $ superplay elfMap guardPath l 0))) allObstacles
-    return $ length $ nub $ map fst jankMagic
+sortGuardPath :: ((a, (b, c)), Int) -> ((a, (b, c)), Int) -> Ordering
+sortGuardPath (_, a)  (_, b)
+    | a < b     = LT
+    | a > b     = GT
+    | otherwise = EQ
+
+part2 :: [[Pixel]] -> (Int, Int) -> Int
+part2 elfMap loc = length . filter (== -1) $ newLastMoves
+    where guardPath         = sortBy sortGuardPath $ Map.toList $ snd $ walk elfMap 0 Map.empty Up loc
+          getStep ix        = fst $ guardPath !! ix
+          getDirection ix   = fst $ getStep ix
+          getLocation ix    = snd $ getStep ix
+          allObstacles      = getAllPossibleObstacles elfMap guardPath
+          uniqueObstacles   = map head . groupBy sameObstacle $ sortBy compareObstacles allObstacles
+          newMaps           = map (Data.Bifunctor.second (placeObstacle elfMap)) uniqueObstacles
+          getStuff i        = Map.fromList $ takeWhile (\(_, j) -> j < i) guardPath
+          newLastMoves      = map (fst . (\(i, m) -> uncurry (walk m 0 (getStuff i)) (getStep i))) newMaps
+
+        --   get i     = guardPath !! i
 
 main = do
-    putStrLn "\n--part1"
+    (exampleLoc, exampleMap) <- parseMap "example1.txt"
+    (loc, elfMap)            <- parseMap "input.txt"
 
-    example1 <- part1 "example1.txt"
+    putStrLn "\n--part1"
+    let example1 = part1 exampleMap exampleLoc
     print [example1, example1 - 41]
 
-    answerPart1 <- part1 "input.txt"
+    let answerPart1 = part1 elfMap loc
     print [answerPart1, answerPart1 - 5444]
 
     putStrLn "\n--part2"
-    example2 <- part2 "example1.txt"
+    let example2 = part2 exampleMap exampleLoc
     print [example2, example2 - 6]
 
-    answerPart2 <- part2 "input.txt"
+    let answerPart2 = part2 elfMap loc
     print [answerPart2, answerPart2 - 1946]
