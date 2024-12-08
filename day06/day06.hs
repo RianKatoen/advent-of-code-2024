@@ -1,9 +1,7 @@
 import Data.List (elemIndex, nub, sortBy, groupBy)
-import Data.Maybe (fromJust, isJust)
-import Data.Set (Set, empty, member, insert, toList)
+import Data.Maybe (fromJust, isNothing, isJust)
 import Prelude hiding (Right, Left)
 import qualified Data.Map.Strict as Map
-import Debug.Trace (traceShowId, traceShow)
 import qualified Data.Bifunctor
 
 data Direction = Left | Right | Up | Down deriving (Eq, Ord, Show)
@@ -20,7 +18,7 @@ parseMap :: FilePath -> IO ((Int, Int), [[Pixel]])
 parseMap filePath = do
     contents <- readFile filePath
     let linez = lines contents
-    let (x, y) = head $ filter (\(x, y) -> isJust y) $ zip [0..] $ map (elemIndex '^') linez
+    let (x, y) = head $ dropWhile (\(x, y) -> isNothing y) $ zip [0..] $ map (elemIndex '^') linez
     return ((x, fromJust y), map (map (\x -> if x == '#' then Obj else Dot)) linez)
 
 -- Generic momevement stuff.
@@ -102,17 +100,16 @@ sortGuardPath (_, a)  (_, b)
     | a > b     = GT
     | otherwise = EQ
 
+-- All this jank to make it faster.
 part2 :: [[Pixel]] -> (Int, Int) -> Int
 part2 elfMap loc = length . filter (== -1) $ newLastMoves
     where guardPath         = sortBy sortGuardPath $ Map.toList $ snd $ walk elfMap 0 Map.empty Up loc
-          getStep ix        = fst $ guardPath !! ix
-          getDirection ix   = fst $ getStep ix
-          getLocation ix    = snd $ getStep ix
           allObstacles      = getAllPossibleObstacles elfMap guardPath
           uniqueObstacles   = map head . groupBy sameObstacle $ sortBy compareObstacles allObstacles
           newMaps           = map (Data.Bifunctor.second (placeObstacle elfMap)) uniqueObstacles
-          getStuff i        = Map.fromList $ takeWhile (\(_, j) -> j < i) guardPath
-          newLastMoves      = map (fst . (\(i, m) -> uncurry (walk m 0 (getStuff i)) (getStep i))) newMaps
+          getStep ix        = fst $ guardPath !! ix
+          getSubPath ix     = Map.fromList $ takeWhile (\(_, j) -> j < ix - 1) guardPath
+          newLastMoves      = map (fst . (\(i, m) -> uncurry (walk m 0 (getSubPath i)) (getStep i))) newMaps
 
         --   get i     = guardPath !! i
 
