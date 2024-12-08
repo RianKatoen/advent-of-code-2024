@@ -1,6 +1,6 @@
 import Data.Char (isNumber)
 import Data.List (isPrefixOf, findIndex, tails)
-import Data.Maybe (isNothing, fromJust)
+import Data.Maybe (fromJust, isNothing)
 
 -- Let's try and do this without regex...
 split :: Char -> String -> [String]
@@ -19,27 +19,23 @@ calculate :: [String] -> Int
 calculate x = product $ map read x
 
 capture :: (String -> Bool) -> String -> String -> String -> [String]
-capture f a b x = do
-    let ix_a = findIndex (isPrefixOf a) (tails x)
-    case ix_a of
-        Nothing -> []
-        __ -> do
-            let remainder = drop (fromJust ix_a + length a) x
-            let ix_b = findIndex (isPrefixOf b) (tails remainder)
-            case ix_b of
-                Nothing -> []
-                _ -> do
-                    let captured = take (fromJust ix_b) remainder
-                    if f captured
-                        then captured : capture f a b (drop (fromJust ix_b) remainder)
-                    else
-                        capture f a b remainder
+capture f a b x
+        | isNothing ix_a = []
+        | isNothing ix_b = []
+        | f captured     = captured : capture f a b (drop (fromJust ix_b) remainder)
+        | otherwise      = capture f a b remainder
+
+    where findIndexOf a = findIndex (isPrefixOf a) . tails
+          ix_a = findIndexOf a x
+          remainder = drop (fromJust ix_a + length a) x
+          ix_b = findIndexOf b remainder
+          captured = take (fromJust ix_b) remainder
 
 part1 :: String -> Int
-part1 x = sum $ map (calculate . split ',') (capture isLegitMul "mul(" ")" x)
+part1 = sum . map (calculate . split ',') . capture isLegitMul "mul(" ")"
 
 part2 :: String -> Int
-part2 x = sum $ map part1 $ capture (const True) "do()" "don't()" ("do()" ++ x ++ "don't()")
+part2 = sum . map part1 . capture (const True) "do()" "don't()" . ("do()" ++) . (++ "don't()")
 
 main = do
     let exampleInput1 = "xmul(2,4)%&mul[3,7]!@^do_not_mul(5,5)+mul(32,64]then(mul(11,8)mul(8,5))"

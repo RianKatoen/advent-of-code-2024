@@ -1,13 +1,10 @@
 import Data.List (sort)
 
-parseLine :: (String, String) -> (Int, Int)
-parseLine (a, b) = (read a :: Int, read b :: Int)
-
 getInput :: FilePath -> IO ([Int], [Int])
 getInput filePath = do
   contents <- readFile filePath
-  let input = lines contents
-  return $ unzip $ map (parseLine . break (==' ')) input
+  return $ unzip $ map (parseLine . break (==' ')) $ lines contents
+    where parseLine (a, b) = (read a :: Int, read b :: Int)
 
 getPart1 :: [Int] -> [Int] -> Int
 getPart1 a b = sum $ zipWith (\x y -> abs (x - y)) (sort a) (sort b)

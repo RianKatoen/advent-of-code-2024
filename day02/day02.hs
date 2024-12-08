@@ -12,8 +12,9 @@ isSafe xs = case scores of
 
 isSafeWithDamper :: [Int] -> Bool
 isSafeWithDamper xs
-  | isSafe xs = True
-  | otherwise = any isSafe (filter (\x -> length x == length xs - 1) (subsequences xs))
+    | isSafe xs = True
+    | otherwise = any isSafe . filter (\x -> length x == newLength) $ subsequences xs
+  where newLength = length xs - 1
 
 main = do
     exampleReports <- getInput "example.txt"
