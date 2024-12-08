@@ -2,7 +2,7 @@ data XDirection = GoUp | GoDown | Flat deriving (Show, Eq, Enum)
 data YDirection = GoLeft | GoRight | Center deriving (Show, Eq, Enum)
 
 allDirections :: [(XDirection, YDirection)]
-allDirections = filter (/= (Flat, Center)) $ zip (concatMap (replicate 3) [GoUp .. Flat]) (concat $ replicate 3 [GoLeft .. Center])
+allDirections = filter (/= (Flat, Center)) $ zip (concatMap (replicate 3) [GoUp .. Flat]) $ concat $ replicate 3 [GoLeft .. Center]
 
 getXOffset :: XDirection -> Int
 getXOffset xDirection = case xDirection of
@@ -19,26 +19,25 @@ getYOffset yDirection = case yDirection of
 getOffset :: (XDirection, YDirection) -> (Int, Int)
 getOffset (xDirection, yDirection) = (getXOffset xDirection, getYOffset yDirection)
 
-checkBounds :: (Int, Int) -> (Int, Int) -> Bool
-checkBounds (x, y) (xUpperBound, yUpperBound)
-    | x < 0             = False
-    | y < 0             = False
-    | x >= xUpperBound  = False
-    | y >= yUpperBound  = False
-    | otherwise         = True
+checkBounds :: (Int, Int) -> Int -> Bool
+checkBounds (x, y) boundary
+    | x < 0          = False
+    | y < 0          = False
+    | x >= boundary  = False
+    | y >= boundary  = False
+    | otherwise      = True
 
 getIndices :: Int -> [(Int, Int)]
 getIndices n = take (n*n) $ map (\i -> (i `div` n, i `rem` n)) [0..]
 
 getWord :: Int -> [String] ->  (Int, Int) -> (XDirection, YDirection) -> String
-getWord n puzzle (x, y) (xDir, yDir)  = do
-    let (dx, dy) = getOffset (xDir, yDir)
-    if not (checkBounds (x, y) (length puzzle, length (head puzzle)))
-        then []
-    else if checkBounds ((n - 1) * dx + x, (n - 1) * dy + y) (length puzzle, length (head puzzle))
-        then take n $ map (\ix -> puzzle !! (x + ix * dx) !! (y + ix * dy)) [0..]
-    else
-        []
+getWord n puzzle (x, y) (xDir, yDir)
+    | not $ checkBounds (x, y) boundary                         = []
+    | checkBounds ((n - 1) * dx + x, (n - 1) * dy + y) boundary = getLetters
+    | otherwise                                                 = []
+    where boundary      = length puzzle
+          (dx, dy)      = getOffset (xDir, yDir)
+          getLetters    = take n $ map (\i -> puzzle !! (x + i * dx) !! (y + i * dy)) [0..]
 
 getWords :: Int -> [String] -> (Int, Int) -> [String]
 getWords n puzzle (x, y) = filter (/="") $ map getWordPuzzle allDirections
