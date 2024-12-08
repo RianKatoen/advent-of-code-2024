@@ -24,16 +24,14 @@ parseFile filePath = do
     let linez = lines stuff
     return (length linez, concat $ filter (not . null) $ zipWith parseLine [0..] linez)
 
--- This seems so stupid.
-orderAntenna :: Ord a => a -> a -> Ordering
-orderAntenna a b
-    | a > b       = GT
-    | b < a       = LT
-    | otherwise   = EQ
-
 groupAntennas :: [Antenna] -> [[Antenna]]
-groupAntennas = groupBy (\(Antenna a _) (Antenna b _) -> a == b) . sortBy (\(Antenna a _) (Antenna b _) -> orderAntenna a b)
-
+groupAntennas = groupBy sameFrequency . sortBy orderByFrequency
+    where sameFrequency     (Antenna a _) (Antenna b _) = a == b
+          orderByFrequency  (Antenna a _) (Antenna b _)
+            | a > b       = GT
+            | b < a       = LT
+            | otherwise   = EQ
+            
 isInBounds :: Int -> (Int, Int) -> Bool
 isInBounds u (x, y) = x >= 0 && y >= 0 && x < u && y < u
 
