@@ -21,56 +21,40 @@ parseFile filePath = do
     let equationStrings = lines stuff
     return $ map parseLine equationStrings
 
-addddddd :: Integer -> Integer -> Integer
-addddddd = (+)
-
-productt :: Integer -> Integer -> Integer
-productt = (*)
-
-concattt :: (Show a1, Show a2) => a1 -> a2 -> Integer
-concattt a b = read (show a ++ show b) :: Integer
+--concattt :: (Inte a1, Show a2) => a1 -> a2 -> Integer
+concattt :: Integral a => a -> a -> a
+concattt a b = a * 10^(1 + log10 b) + b
+    where log10 x = floor (logBase 10 (fromIntegral x))
 
 -- The fun part :)
-getOperators :: (Eq a, Num a) => a -> [[Integer -> Integer -> Integer]]
-getOperators 1 = [[(+)], [(*)]]
-getOperators n | addPlus    <- map (addddddd :) nextLevel,
-                 addProduct <- map (productt :) nextLevel
-             = addPlus ++ addProduct
-             where nextLevel = getOperators (n - 1)
+getOperators :: (Eq a, Num a) => [Integer -> Integer -> Integer] -> a -> [[Integer -> Integer -> Integer]]
+getOperators base 1 = map (: []) base
+getOperators base n
+        = concatMap joinOps base
+    where   nextLevel = getOperators base (n - 1)
+            joinOps op = map (op :) nextLevel
 
 apply :: [t1] -> [t1 -> t1 -> t1] -> t1
 apply [a, b]     [operator]          = operator a b
 apply (a:b:rest) (o:operators)     | stuff <- o a b
                 = apply (stuff : rest) operators
 
-solve :: Num b => (Int -> [[Integer -> Integer -> Integer]]) -> Equation -> b
-solve getOperatorss (Equation result values)
-        | allPossibleOperators <- getOperatorss (length values - 1),
-          allResults           <- map (apply values) allPossibleOperators,
-          allProperResults     <- filter (== result) allResults
-    = fromIntegral (length allProperResults)
+solve :: (Int -> [[Integer -> Integer -> Integer]]) -> Equation -> Bool
+solve operators (Equation result values)
+        | allPossibleOperators <- operators (length values - 1),
+          allResults           <- map (apply values) allPossibleOperators
+    = result `elem` allResults
 
 printOp :: (Integer -> Integer -> Integer) -> Char
 printOp op = case outcome of
         2   -> '+'
         1   -> '*'
         11  -> '|'
-    where outcome = op 1 1 
+    where outcome = op 1 1
 
 
-part1 :: [Equation] -> Integer
-part1 eqs = sum $ map (\eq -> if solve getOperators eq > 0 then result eq else 0) eqs
-
-getOperatorz :: (Eq a, Num a) => a -> [[Integer -> Integer -> Integer]]
-getOperatorz 1 = [[(+)], [(*)], [concattt]]
-getOperatorz n | addPlus    <- map (addddddd :) nextLevel,
-                 addProduct <- map (productt :) nextLevel,
-                 addConcat  <- map (concattt :) nextLevel
-             = addPlus ++ addProduct ++ addConcat
-             where nextLevel = getOperatorz (n - 1)
-
-part2 :: [Equation] -> Integer
-part2 eqs = sum $ map (\eq -> if solve getOperatorz eq > 0 then result eq else 0) eqs
+solution :: [Integer -> Integer -> Integer] -> [Equation] -> Integer
+solution ops eqs = sum $ map (\eq -> if solve (getOperators ops) eq then result eq else 0) eqs
 
 -- main yo.
 main = do
@@ -78,15 +62,14 @@ main = do
     inputEquations <- parseFile "input.txt"
 
     putStrLn "\n--part1"
-    let example1 = part1 exampleEquations
+    let example1 = solution [(+), (*)] exampleEquations
     print [example1, example1 - 3749]
-    let answerPart1 = part1 inputEquations
+    let answerPart1 = solution [(+), (*)] inputEquations
     print [answerPart1, answerPart1 - 1620690235709]
 
-    
     putStrLn "\n--part2"
-    let example2 = part2 exampleEquations
+    let example2 = solution [(+), (*), concattt] exampleEquations
     print [example2, example2 - 11387]
 
-    let answerPart2 = part2 inputEquations
+    let answerPart2 = solution [(+), (*), concattt] inputEquations
     print [answerPart2, answerPart2 - 145397611075341]
