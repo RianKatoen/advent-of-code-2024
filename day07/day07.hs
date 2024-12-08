@@ -34,24 +34,15 @@ getOperators base n
     where   nextLevel = getOperators base (n - 1)
             joinOps op = map (op :) nextLevel
 
-apply :: [t1] -> [t1 -> t1 -> t1] -> t1
-apply [a, b]     [operator]          = operator a b
-apply (a:b:rest) (o:operators)     | stuff <- o a b
-                = apply (stuff : rest) operators
+apply :: Integer -> [Integer] -> [Integer -> Integer -> Integer] -> Integer
+apply result [a, b]     [operator]    = operator a b
+apply result (a:b:rest) (o:operators) = apply result (o a b : rest) operators
 
 solve :: (Int -> [[Integer -> Integer -> Integer]]) -> Equation -> Bool
 solve operators (Equation result values)
         | allPossibleOperators <- operators (length values - 1),
-          allResults           <- map (apply values) allPossibleOperators
+          allResults           <- map (apply result values) allPossibleOperators
     = result `elem` allResults
-
-printOp :: (Integer -> Integer -> Integer) -> Char
-printOp op = case outcome of
-        2   -> '+'
-        1   -> '*'
-        11  -> '|'
-    where outcome = op 1 1
-
 
 solution :: [Integer -> Integer -> Integer] -> [Equation] -> Integer
 solution ops eqs = sum $ map (\eq -> if solve (getOperators ops) eq then result eq else 0) eqs
@@ -70,6 +61,5 @@ main = do
     putStrLn "\n--part2"
     let example2 = solution [(+), (*), concattt] exampleEquations
     print [example2, example2 - 11387]
-
     let answerPart2 = solution [(+), (*), concattt] inputEquations
     print [answerPart2, answerPart2 - 145397611075341]
