@@ -27,6 +27,8 @@ concattt a b = a * 10^(1 + log10 b) + b
     where log10 x = floor (logBase 10 (fromIntegral x))
 
 -- The fun part :)
+-- This can be done better I think by splitting between options earlier.
+-- a + b < a * b (if a and b > 1) and a * b < a || b (if a and b > 1)
 getOperators :: (Eq a, Num a) => [Integer -> Integer -> Integer] -> a -> [[Integer -> Integer -> Integer]]
 getOperators base 1 = map (: []) base
 getOperators base n
@@ -34,14 +36,14 @@ getOperators base n
     where   nextLevel = getOperators base (n - 1)
             joinOps op = map (op :) nextLevel
 
-apply :: Integer -> [Integer] -> [Integer -> Integer -> Integer] -> Integer
-apply result [a, b]     [operator]    = operator a b
-apply result (a:b:rest) (o:operators) = apply result (o a b : rest) operators
+apply :: [Integer] -> [Integer -> Integer -> Integer] -> Integer
+apply [a, b]     [operator]    = operator a b
+apply (a:b:rest) (o:operators) = apply (o a b : rest) operators
 
 solve :: (Int -> [[Integer -> Integer -> Integer]]) -> Equation -> Bool
 solve operators (Equation result values)
         | allPossibleOperators <- operators (length values - 1),
-          allResults           <- map (apply result values) allPossibleOperators
+          allResults           <- map (apply values) allPossibleOperators
     = result `elem` allResults
 
 solution :: [Integer -> Integer -> Integer] -> [Equation] -> Integer
@@ -61,5 +63,5 @@ main = do
     putStrLn "\n--part2"
     let example2 = solution [(+), (*), concattt] exampleEquations
     print [example2, example2 - 11387]
-    let answerPart2 = solution [(+), (*), concattt] inputEquations
+    let answerPart2 = solution [(*), concattt, (+)] inputEquations
     print [answerPart2, answerPart2 - 145397611075341]
