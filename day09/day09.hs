@@ -1,8 +1,7 @@
 import Data.Char (digitToInt)
 import Data.Bits (shiftR)
 import Data.Maybe (isNothing, isJust, fromJust, fromMaybe)
-import Debug.Trace (traceShowId, traceShow)
-import Data.List (tails)
+import Data.List (findIndex)
 
 -- Data.
 data BitRange = BitRange { id :: Maybe Int, blocks :: Int }
@@ -48,32 +47,43 @@ compress (a:rest)
           new_a_blocks  = max 0 $ a_blocks - new_b_blocks
           new_0_blocks  = max 0 $ b_blocks - new_b_blocks
 
-comprezz :: [BitRange] -> [BitRange]
-comprezz [] = []
-comprezz [a] = [a]
-comprezz (a:rest)
-        | isNothing $ getId a   = comprezz rest
-        | noBlocks a <= 0       = comprezz rest
-        | otherwise             = na : comprezz (middle ++ [nz, nb])
-    where (middle, b)   = (init rest, last rest)
-          (na, nz, nb)  = traceShowId $ a <+> b
-
-(<:>) :: BitRange -> BitRange -> (BitRange, BitRange, BitRange)
+(<:>) :: BitRange -> BitRange -> ([BitRange], [BitRange])
 (<:>) (BitRange a_id a_blocks) (BitRange b_id b_blocks)
-        | not fits      = (BitRange a_id a_blocks,     BitRange Nothing 0,            BitRange b_id b_blocks)
-        | isJust a_id   = (BitRange a_id a_blocks,     BitRange Nothing 0,            BitRange b_id b_blocks)
-        | otherwise     = (BitRange b_id new_a_blocks, BitRange Nothing new_0_blocks, BitRange b_id new_b_blocks)
-    where fits          = a_blocks >= b_blocks
-          new_a_blocks  = min a_blocks b_blocks
-          new_b_blocks  = max 0 $ b_blocks - new_a_blocks
-          new_0_blocks  = max 0 $ a_blocks - new_a_blocks
+        | isNothing a_id || isJust b_id || not fits
+            = ([BitRange a_id a_blocks],     [BitRange b_id b_blocks])
+        | otherwise
+            = ([BitRange Nothing a_blocks], [BitRange Nothing new_0_blocks | new_0_blocks > 0] ++ [BitRange a_id new_b_blocks])
+    where fits          = a_blocks <= b_blocks
+          new_b_blocks  = min a_blocks b_blocks
+          new_a_blocks  = max 0 $ a_blocks - new_b_blocks
+          new_0_blocks  = max 0 $ b_blocks - new_b_blocks
+
+compross [a] = [a]
+compross ((BitRange id_a size_a):brs)
+        | isNothing id_a                    = BitRange id_a size_a : compross brs
+        | isNothing maybeIx                 = BitRange id_a size_a : compross brs
+        | BitRange id_a size_a:brs == next  = next
+        | otherwise                         = compross next
+
+    where srb               = reverse brs
+          maybeIx           = findIndex (\(BitRange id_b size_b) -> isNothing id_b && size_b >= size_a) srb
+          ix                = fromJust maybeIx
+          (before, after)   = splitAt ix srb
+          (na, nb)          = BitRange id_a size_a <:> (srb !! ix)
+          next              = reverse $ before ++ reverse nb ++ tail after ++ na
 
 
 printMemory :: [BitRange] -> String
 printMemory = concat . concatMap (\(BitRange id blocks) -> replicate blocks (maybe "." show id))
 
 score :: Foldable t => t BitRange -> Int
-score x = sum $ zipWith (*) [0.. ] $ concatMap (\(BitRange id blocks) -> replicate blocks $ fromMaybe 0 id) x
+score = sum . zipWith (*) [0.. ] . concatMap (\(BitRange id blocks) -> replicate blocks $ fromMaybe 0 id)
+
+part1 :: String -> Int
+part1 = score . compress . parseDisk
+
+part2 :: String -> Int
+part2 = score . reverse . compross . reverse . parseDisk
 
 main = do
     let exampleInput1 = "12345"
@@ -81,13 +91,15 @@ main = do
     input <- readFile "input.txt"
 
     putStrLn "\npart 1"
-    print $ printMemory . reverse $ comprezz $ parseDisk exampleInput2
-    print $ score . compress $ parseDisk exampleInput1
-    print $ score . compress $ parseDisk exampleInput2
-    -- print $ score . compress $ parseDisk input
+    let example11 = part1 exampleInput1
+    print [example11, example11 - 60]
+    let example12 =  part1 exampleInput2
+    print [example12, example12 - 1928]
+    let answerPart1 = part1 input
+    print [answerPart1, answerPart1 - 6607511583593]
 
     putStrLn "\npart 2"
-    -- print $ printMemory . comprezz $ parseDisk exampleInput2
-    -- mapM_ print $ operate $ parseDisk exampleInput2
-    -- print $ printMemory . reverse $ operate $ reverse $ parseDisk exampleInput2
-    -- print $ score . comprezz $ parseDisk input
+    let example2 =  part2 exampleInput2
+    print [example2, example2 - 2858]
+    let answerPart2 = part2 input
+    print [answerPart2, answerPart2 - 6636608781232]
