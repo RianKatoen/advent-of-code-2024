@@ -1,5 +1,4 @@
 import Prelude hiding (traverse, Right, Left)
-import qualified Data.Set as Sets
 import Debug.Trace (traceShowId, trace, traceShowM)
 import Data.List (nub)
 
@@ -30,26 +29,34 @@ filterFlower :: Char -> [[Char]] -> [[Char]]
 filterFlower flower = map (map removeFlower)
     where removeFlower f = if f == flower then flower else '.'
 
-step :: [[Char]] -> Char -> Sets.Set (Int, Int) -> Sets.Set (Int, Int)
+step :: [[Char]] -> Char -> [(Int, Int)] -> [(Int, Int)]
 step flowers flower region
         | n             <- length flowers,
-          possibleMoves <- Sets.fromList $ concatMap (filter (inBounds n) . cross) region,
-          actualMoves   <- Sets.filter (\(xx, yy) -> flowers !! xx !! yy == flower) possibleMoves,
-          newMoves      <- Sets.filter (`notElem` region) actualMoves,
-          newRegion     <- Sets.union region newMoves
+          possibleMoves <- concatMap (filter (inBounds n) . cross) region,
+          actualMoves   <- filter (\(xx, yy) -> flowers !! xx !! yy == flower) possibleMoves,
+          newMoves      <- filter (`notElem` region) actualMoves,
+          newRegion     <- nub $ region ++ newMoves
         = if null newMoves then region else step flowers flower newRegion
 
-region :: [[Char]] -> (Int, Int) -> Sets.Set (Int, Int)
-region flowers (x, y) = step flowers (flowers !! x !! y) (Sets.fromList [(x, y)])
+region :: [[Char]] -> (Int, Int) -> [(Int, Int)]
+region flowers (x, y) = step flowers (flowers !! x !! y) [(x, y)]
 
-area :: Sets.Set (Int, Int) -> Int
-area = Sets.size
+area :: [(Int, Int)] -> Int
+area = length
 
-perimeter :: Sets.Set (Int, Int) -> Int
-perimeter region = Sets.size region * sum (map noNeighbours $ Sets.toList region)
+perimeter :: [(Int, Int)] -> Int
+perimeter region = area region * sum (map noNeighbours region)
     where noNeighbours (x, y) = 4 - length (filter (`elem` region) $ cross (x, y))
 
-findRegions :: [(Int, Int)] -> [Sets.Set (Int, Int)] -> [[Char]] -> [Sets.Set (Int, Int)]
+cornerCheck :: [(Int, Int)] -> (Int, Int) -> Int
+cornerCheck region (x, y)
+        = sum (map score1 cornerMoves)
+    where cornerMoves       = [(Up, Right), (Right, Down), (Down, Left), (Left, Up)]
+          selfMove          = (`elem` region) . move (x, y)
+          diagMove (d1, d2) = (`elem` region) (move (move (x, y) d1) d2)
+          score1 (d1, d2)   = if (not (selfMove d1) && not (selfMove d2)) || (selfMove d1 && selfMove d2 &&  not (diagMove (d1, d2))) then 1 else 0
+
+findRegions :: [(Int, Int)] -> [[(Int, Int)]] -> [[Char]] -> [[(Int, Int)]]
 findRegions unknownFlowers regions flowers
         | null unknownFlowers   = regions
         | otherwise             = findRegions newUnkownFlowers (nextRegion:regions) flowers
@@ -57,9 +64,12 @@ findRegions unknownFlowers regions flowers
           nextRegion            = region flowers $ head unknownFlowers
           newUnkownFlowers      = filter (`notElem` nextRegion) unknownFlowers
 
-
 part1 :: [[Char]] -> Int
 part1 flowers = sum . map perimeter $ findRegions (getIndices (length flowers)) [] flowers
+
+part2 :: [[Char]] -> Int
+part2 flowers = sum . map ((\r -> sum r * length r) . (\r -> map (cornerCheck r) r)) $ foundRegions
+    where foundRegions = findRegions (getIndices (length flowers)) [] flowers
 
 main = do
     exampleMap1 <- parseMap "example1.txt"
@@ -68,13 +78,19 @@ main = do
     inputMap <- parseMap "input.txt"
 
     putStrLn "\n--part1"
-    let example1 = part1 exampleMap1
-    print [example1, example1 - 140]
-    let example2 = part1 exampleMap2
-    print [example2, example2 - 772]
-    let example3 = part1 exampleMap3
-    print [example3, example3 - 1930]
+    let example11 = part1 exampleMap1
+    print [example11, example11 - 140]
+    let example12 = part1 exampleMap2
+    print [example12, example12 - 772]
+    let example13 = part1 exampleMap3
+    print [example13, example13 - 1930]
     let answerPart1 = part1 inputMap
     print [answerPart1, answerPart1 - 1371306]
 
-    -- print $ perimeter $ region inputMap (0, 0)
+    putStrLn "\n--part2"
+    let example21 = part2 exampleMap1
+    print [example21, example21 - 80]
+    let example23 = part2 exampleMap3
+    print [example23, example23 - 1206]
+    let answerPart2 = part2 inputMap
+    print [answerPart2, answerPart2 - 1371306]
