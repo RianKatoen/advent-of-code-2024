@@ -109,7 +109,7 @@ reverseTraverse solvedMap (dir, loc) value
         | otherwise         = loc : concatMap (\((d, l), v) -> reverseTraverse solvedMap (d, l) v) newValues
     where locs      = Map.filterWithKey (\(d, l) v -> l == loc && ((d == dir && v <= value) || (d == rot dir || d == ccrot dir) && v == value - 1000)) solvedMap
           newLocs   = map (\((d, loc), v) -> ((d, reverseMove (d, loc)), v)) $ Map.toList locs
-          newValues = map (\(x, _, w) -> (x, w)) $ filter (\(_, v, w) -> v >= w) $ map (\(l, v) -> (l, v, fromMaybe 99999999999 (Map.lookup l solvedMap))) newLocs
+          newValues = map (\(x, _, w) -> (x, w)) $ filter (\(_, v, w) -> v > w) $ map (\(l, v) -> (l, v, fromMaybe 99999999999 (Map.lookup l solvedMap))) newLocs
 
 part2 :: [[Char]] -> (Direction, (Int, Int)) -> Int -> Int
 part2 maze loc score = 1 + length (nub $ reverseTraverse (solveMaze maze loc) (North, (1, length maze - 2)) score)
