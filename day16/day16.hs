@@ -1,8 +1,10 @@
 import qualified Data.Bifunctor
 import qualified Data.Map.Strict as Map
 
-import Data.List (elemIndex)
+import Data.List (elemIndex, nub, sort)
 import Data.Maybe (mapMaybe, isNothing, fromJust, isJust, fromMaybe)
+import Debug.Trace (traceShowId)
+import qualified GHC.Exts.Heap as Map
 
 data Direction = East | West | North | South deriving (Eq, Ord, Show)
 data Step = Turn | Forward deriving (Eq, Ord, Show)
@@ -14,6 +16,20 @@ parseFile filePath = do
         return (maze, (East, loc))
     where whereIsStart = elemIndex 'S'
           checkLine (x, y)  = if isNothing (whereIsStart y) then Nothing else Just (x, fromJust $ whereIsStart y)
+
+rot :: Direction -> Direction
+rot d = case d of
+    East    -> North
+    North   -> West
+    West    -> South
+    South   -> East
+
+ccrot :: Direction -> Direction
+ccrot d = case d of
+    East    -> South
+    North   -> East
+    West    -> North
+    South   -> West
 
 rotate :: (Direction, (Int, Int)) -> (Direction, (Int, Int))
 rotate (d, loc) = case d of
@@ -36,8 +52,12 @@ move (d, (x, y)) = case d of
     North   -> (x - 1, y)
     South   -> (x + 1, y)
 
-cross :: (Int, Int) -> [(Int, Int)]
-cross (x, y) = map (\d -> move (d, (x, y))) [East, West, North, South]
+reverseMove :: (Direction, (Int, Int)) -> (Int, Int)
+reverseMove (d, (x, y)) = case d of
+    East    -> (x, y + 1)
+    West    -> (x, y - 1)
+    North   -> (x + 1, y)
+    South   -> (x - 1, y)
 
 inBounds :: Int -> (Int, Int) -> Bool
 inBounds n (r, c) = r > 0 && r < n && c > 0 && c < n
@@ -59,18 +79,21 @@ step maze (dir, loc)
     where (fd, (fx, fy))   = (dir, move (dir, loc))
           isForwardLegit   = maze !! fx !! fy /= '#'
 
-traverseMaze :: [[Char]] -> (Map.Map (Int, Int) Int, Map.Map (Direction, (Int, Int)) Int) -> (Map.Map (Int, Int) Int, Map.Map (Direction, (Int, Int)) Int)
+traverseMaze :: [[Char]] -> (Map.Map (Direction, (Int, Int)) Int, Map.Map (Direction, (Int, Int)) Int) -> (Map.Map (Direction, (Int, Int)) Int, Map.Map (Direction, (Int, Int)) Int)
 traverseMaze maze (visitedLocs, newLocs)
         | null differenceLocs      = (newVisitedLocs, differenceLocs)
         | otherwise                = traverseMaze maze (newVisitedLocs, differenceLocs)
     where newLocsList       = Map.toList newLocs
-          rotatedLocs1      = map (Data.Bifunctor.first fromJust) . filter (isJust . fst) $ map (\(loc, val) -> (step maze $ rotate loc, val + 1001)) newLocsList
-          rotatedLocs2      = map (Data.Bifunctor.first fromJust) . filter (isJust . fst) $ map (\(loc, val) -> (step maze $ ccrotate loc, val + 1001)) newLocsList
+          rotatedLocs1      = map (\(loc, val) -> (rotate loc, val + 1000)) newLocsList
+          rotatedLocs2      = map (\(loc, val) -> (ccrotate loc, val + 1000)) newLocsList
           movedLocs         = map (Data.Bifunctor.first fromJust) . filter (isJust . fst) $ map (\(loc, val) -> (step maze loc, val + 1)) newLocsList
           afterMoveLocs     = rotatedLocs1 ++ rotatedLocs2 ++ movedLocs
-          newVisitedLocs    = Map.unionWith min visitedLocs $ Map.fromListWith min $ map (\((_, loc), val) -> (loc, val)) afterMoveLocs
-          lookupLoc (x, y)  = fromMaybe 99999999 $ Map.lookup (x, y) newVisitedLocs
-          differenceLocs    = Map.fromList $ filter (\((_, loc), val) -> val <= lookupLoc loc) afterMoveLocs
+          newVisitedLocs    = Map.unionWith min visitedLocs $ Map.fromListWith min afterMoveLocs
+          lookupLoc loc     = fromMaybe 99999999999 $ Map.lookup loc newVisitedLocs
+          differenceLocs    = Map.fromList $ filter (\(loc, val) -> val <= lookupLoc loc) afterMoveLocs
+
+solveMaze :: [[Char]] -> (Direction, (Int, Int)) -> Map.Map (Direction, (Int, Int)) Int
+solveMaze maze loc = fst $ traverseMaze maze (Map.fromList [(loc, 0)], Map.fromList [(loc, 0)])
 
 printMaze :: [[Char]] -> [(Direction, (Int, Int))] -> [[Char]]
 printMaze maze locs =
@@ -78,17 +101,18 @@ printMaze maze locs =
      where locMap = Map.fromList $ map (\(x, y) -> (y, x)) locs
 
 part1 :: [[Char]] -> (Direction, (Int, Int)) -> Int
-part1 maze loc = minimum $ map snd $ filter (\((x, y), _) -> maze !! x !! y == 'E') $ Map.toList $ fst $ traverseMaze maze (Map.empty, Map.fromList [(loc, 0)])
+part1 maze loc = minimum $ map snd $ filter (\((x, y), _) -> maze !! x !! y == 'E') $ map (\((_, loc), v) -> (loc, v)) $ Map.toList $ solveMaze maze loc
 
-reverseTraverse :: Map.Map (Int, Int) Int -> (Int, Int) ->  [(Int, Int)]
-reverseTraverse steps loc 
-        | loc `Map.notMember` steps  = []
-        | otherwise                  = loc : concatMap (reverseTraverse steps) crossMoves
-    where (l, v)    = (loc, fromJust $ Map.lookup loc steps)
-          crossMoves = map fst $ filter (\(_, y) -> y < v) $ map (\x -> (x, fromMaybe 99999999 (Map.lookup x steps))) $ cross loc
+reverseTraverse :: Map.Map (Direction, (Int, Int)) Int -> (Direction, (Int, Int)) -> Int -> [(Int, Int)]
+reverseTraverse solvedMap (dir, loc) value
+        | null newValues    = []
+        | otherwise         = loc : concatMap (\((d, l), v) -> reverseTraverse solvedMap (d, l) v) newValues
+    where locs      = Map.filterWithKey (\(d, l) v -> l == loc && ((d == dir && v <= value) || (d == rot dir || d == ccrot dir) && v == value - 1000)) solvedMap
+          newLocs   = map (\((d, loc), v) -> ((d, reverseMove (d, loc)), v)) $ Map.toList locs
+          newValues = map (\(x, _, w) -> (x, w)) $ filter (\(_, v, w) -> v >= w) $ map (\(l, v) -> (l, v, fromMaybe 99999999999 (Map.lookup l solvedMap))) newLocs
 
--- part2 :: [[Char]] -> (Direction, (Int, Int)) -> Int
-part2 maze loc = reverseTraverse (fst $ traverseMaze maze (Map.empty, Map.fromList [(loc, 0)])) (1,13)
+part2 :: [[Char]] -> (Direction, (Int, Int)) -> Int -> Int
+part2 maze loc score = 1 + length (nub $ reverseTraverse (solveMaze maze loc) (North, (1, length maze - 2)) score)
 
 main = do
     (mazeExample1, locExample1) <- parseFile "example1.txt"
@@ -96,10 +120,17 @@ main = do
     (mazeInput, locInput) <- parseFile "input.txt"
 
     putStrLn "\npart 1"
-    print $ part1 mazeExample1 locExample1
-    print $ part1 mazeExample2 locExample2
-    print $ part1 mazeInput locInput
+    let example11 = part1 mazeExample1 locExample1
+    print [example11, example11 - 7036]
+    let example12 = part1 mazeExample2 locExample2
+    print [example12, example12 - 11048]
+    let answerPart1 = part1 mazeInput locInput
+    print [answerPart1, answerPart1 - 123540]
 
     putStrLn "\npart 2"
-    -- mapM_ print $ Map.toList $ fst $ traverseMaze mazeExample1 (Map.empty, Map.fromList [(locExample1, 0)])
-    mapM_ print $ printMaze mazeExample1 $ map (West,) $ part2 mazeExample1 locExample1
+    let example21 = part2 mazeExample1 locExample1 example11
+    print [example21, example21 - 45]
+    let example22 = part2 mazeExample2 locExample2 example12
+    print [example22, example22 - 64]
+    let answerPart2 = part2 mazeInput locInput answerPart1
+    print [answerPart2, answerPart2 - 665]
